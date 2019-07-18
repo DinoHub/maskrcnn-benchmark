@@ -331,6 +331,35 @@ class COCODemo(object):
 
         return composite
 
+    def crop_mask_only(self, image, predictions):
+        masks = predictions.get_field("mask").numpy()
+        boxes = predictions.bbox
+        results = []
+        for mask, box in zip(masks, boxes):
+            thresh = mask[0, :, :, None]
+            l,t,r,b = box.to(torch.int64).numpy()
+            if b - t <= 0 or r - l <= 0:
+                continue
+
+            content = image[ t:(b+1), l:(r+1), : ]
+            minimask = thresh[ t:(b+1), l:(r+1), : ]
+            # print( type(content) )
+            # print( type(minimask) )
+            # print( content.shape )
+            # print( minimask.shape )
+            result = content * minimask
+            # print(result.shape)
+            # if result.shape[0] == 0:
+            #     print( t,l,b,r )
+            #     print( image.shape )
+            #     print( thresh.shape )
+            results.append( result )
+            # contours, hierarchy = cv2_util.findContours(
+            #     thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            # )
+            # image = cv2.drawContours(image, contours, -1, color, 3)
+        return results
+
     def overlay_keypoints(self, image, predictions):
         keypoints = predictions.get_field("keypoints")
         kps = keypoints.keypoints

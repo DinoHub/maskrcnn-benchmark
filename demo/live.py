@@ -11,6 +11,8 @@ import time
 mutex = Lock()
 mask_thread_dict = {'top_predictions': None, 'frame': None, 'keep_going':True}
 
+COCO_PERSON_INDEX = 1
+
 def mask_in_thread(coco_demo):
 
     # print('Initialisting deep sort tracker and its embedder..')
@@ -26,6 +28,46 @@ def mask_in_thread(coco_demo):
 
             predictions = coco_demo.compute_prediction(mask_thread_dict['frame'])
             top_predictions = coco_demo.select_top_predictions(predictions)
+
+            masks = top_predictions.get_field('mask')
+            labels = top_predictions.get_field('labels')
+            bboxes = top_predictions.bbox
+
+            # print(masks.shape)
+            # print(type(bboxes))
+            # print(bboxes.size())
+
+            # exit()
+
+            # print(type(masks))
+            # print(type(labels))
+            # print(masks.shape)
+            # print(labels)
+            # import numpy as np
+            # person_mask = labels == 1
+            # person_mask = person_mask.numpy().astype(bool)
+            # print(person_mask)
+            # print(person_mask.shape)
+            # true_mask = []
+            # for i, bit in enumerate(person_mask):
+            #     if bit:
+            #         true_mask.append( i )
+
+            # print(labels)
+            # print(person_mask)
+            # labels = labels[person_mask]
+
+            # print('before: {}'.format(masks.shape))
+            # labels = labels[ labels == 1 ]
+
+            # top_predictions.add_field( 'mask', torch.from_numpy( masks ) )
+            person_bool_mask = (labels == COCO_PERSON_INDEX ).numpy().astype(bool)
+            top_predictions.add_field( 'mask', masks[ person_bool_mask ] )
+            top_predictions.add_field( 'labels', labels[ labels == COCO_PERSON_INDEX  ] )
+            top_predictions.bbox = bboxes[ person_bool_mask ]
+
+            # print('after: {}'.format(masks.shape))
+            # print(labels)
 
             mutex.acquire()
             mask_thread_dict['top_predictions'] = top_predictions
@@ -97,8 +139,9 @@ def main():
     cv2_win = 'MASKRCNN (COCO)'
     cv2.namedWindow(cv2_win, cv2.WINDOW_NORMAL)
 
-    time_cma = None
-    n = 0
+    # time_cma = None
+    # n = 0
+    mask_count = 0
     while True:
         ret_val, img = cam.read()
 
@@ -122,7 +165,12 @@ def main():
 
         if top_predictions:
             if coco_demo.cfg.MODEL.MASK_ON:
-                composite = coco_demo.overlay_mask( composite, top_predictions )
+                masks = coco_demo.crop_mask_only( composite, top_predictions )
+                for mask in masks:
+                    cv2.imwrite( 'masks/{}.png'.format(mask_count), mask )
+                    mask_count += 1
+                # composite = coco_demo.overlay_mask( composite, top_predictions )
+                # composite = coco_demo.overlay_boxes( composite, top_predictions )
             elif coco_demo.show_mask_heatmaps:
                 composite = coco_demo.create_mask_montage(composite, top_predictions)
 
@@ -130,10 +178,10 @@ def main():
         cv2.imshow(cv2_win, composite)
         if cv2.waitKey(1) == 27:
             break  # esc to quit
-        n += 1
+        # n += 1
     cv2.destroyAllWindows()
     mask_thread_dict['keep_going'] = False
-    print("Time (cma): {:.2f} s / img = {:.2f} FPS".format(time_cma, 1./time_cma))
+    # print("Time (cma): {:.2f} s / img = {:.2f} FPS".format(time_cma, 1./time_cma))
 
 if __name__ == "__main__":
     main()
