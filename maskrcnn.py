@@ -14,24 +14,25 @@ class MaskRCNN(object):
                         confidence_threshold=confidence_threshold,
                                     )
 
-    def get_chips_and_masks(self, img):
+    def get_chips_and_masks(self, img, label_index=COCO_PERSON_INDEX):
         '''
         Params
         ------
         img : nd array like, RGB
+        label_index : int, index of label wanted
 
         Returns
         -------
-        nd array, array of (l,t,r,b) bb values
-        and
-        nd array, array of masks, mask is same shape as img, whose value is either 0 or 1. 
+        list of tuple (chip, mask)
+        - chip is a ndarray: bb crop of the image
+        - mask is a ndarray: same shape as chip, whose 'pixel' value is either 0 or 1, indicating if that pixel belongs to that class or not. 
         '''
 
         preds = self.model_wrapper.compute_prediction(img)
         top_preds = self.model_wrapper.select_top_predictions(preds)
 
         labels = top_preds.get_field('labels')
-        person_bool_mask = (labels == COCO_PERSON_INDEX ).numpy().astype(bool)
+        person_bool_mask = (labels==label_index).numpy().astype(bool)
 
         masks = top_preds.get_field('mask').numpy()[person_bool_mask]
         bboxes = top_preds.bbox.to(torch.int64).numpy()[person_bool_mask]
@@ -49,28 +50,7 @@ class MaskRCNN(object):
             minimask = thresh[ t:(b+1), l:(r+1), : ]
             results.append( (content, minimask) )
 
-        return results
-
-        # for i, label in enumerate(labels):
-        #     # thresh = masks[i][0,:,:, None]
-        #     thresh = masks[i][0,:,:]
-        #     print(thresh.shape)
-
-
-        # return bboxes.numpy()[person_bool_mask], masks.numpy()[person_bool_mask]
-
-    # def extract_mask_only(self, img):
-        '''
-        
-        Params
-        ------
-
-
-        Returns
-        -------
-
-        '''
-                
+        return results                
 
 if __name__ == '__main__':
     import cv2
